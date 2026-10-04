@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f6f4">
+  <title>GSTBill — Billing desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="GSTBill home"><span class="brand-mark">G</span><span>gst<span class="brand-light">bill</span><small>YOUR BILLING DESK</small></span></a>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <button class="nav-link active" data-view="billing"><span class="nav-icon">▤</span>New bill</button>
+        <button class="nav-link" data-view="history"><span class="nav-icon">◷</span>Bill history <span class="nav-count" id="billCount">0</span></button>
+        <button class="nav-link" data-view="products"><span class="nav-icon">▦</span>Product library</button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="storage-card"><span class="storage-dot"></span><div><b>Saved on this device</b><small>Your bills stay private</small></div></div>
+      <div class="sidebar-foot">NAVEEN MART · GROCERY</div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div><div class="breadcrumb">Workspace <span>/</span> <b id="crumbCurrent">New bill</b></div><h1 id="pageTitle">Create a grocery bill</h1></div>
+        <div class="top-actions"><span class="local-badge"><i></i>Local database active</span><button class="icon-button" id="helpButton" title="About storage" aria-label="About storage">?</button></div>
+      </header>
+
+      <section class="view active" id="billingView">
+        <div class="content-grid">
+          <div class="editor-column">
+            <section class="panel invoice-panel">
+              <div class="panel-heading compact"><div><span class="step-label">BUSINESS PROFILE · SAVED ON THIS DEVICE</span><h2>Your business</h2></div></div>
+              <div class="field-grid two-col">
+                <label>Shop name<input id="businessName" type="text" placeholder="Naveen Mart"></label>
+                <label>Business GSTIN<input id="businessGstin" type="text" maxlength="15" placeholder="15-character GSTIN"></label>
+                <label class="span-two">Business address<textarea id="businessAddress" rows="2" placeholder="Address printed at the top of your bill"></textarea></label>
+              </div>
+              <div class="divider"></div>
+              <div class="panel-heading"><div><span class="step-label">01 / INVOICE DETAILS</span><h2>Bill information</h2></div><button class="text-button" id="newBillButton">＋ New bill</button></div>
+              <div class="field-grid three-col">
+                <label>Invoice number<input id="invoiceNumber" type="text" autocomplete="off"></label>
+                <label>Invoice date<input id="invoiceDate" type="date"></label>
+                <label>Place of supply<input id="placeOfSupply" type="text" placeholder="e.g. Maharashtra"></label>
+                <label>Tax treatment<select id="taxType"><option value="intra">Intra-state · CGST + SGST</option><option value="inter">Inter-state · IGST</option></select></label>
+              </div>
+              <div class="divider"></div>
+              <div class="panel-heading compact"><div><span class="step-label">02 / CUSTOMER</span><h2>Bill to</h2></div></div>
+              <div class="field-grid two-col">
+                <label>Customer name<input id="customerName" type="text" placeholder="Walk-in customer"></label>
+                <label>Customer GSTIN <span class="optional">OPTIONAL · LEAVE BLANK IF NONE</span><input id="customerGstin" type="text" maxlength="15" placeholder="Customer without GST"></label>
+                <label class="span-two">Billing address<textarea id="customerAddress" rows="2" placeholder="Street, city, state and PIN code"></textarea></label>
+              </div>
+            </section>
+
+            <section class="panel items-panel">
+              <div class="panel-heading"><div><span class="step-label">03 / GROCERY ITEMS</span><h2>Add groceries to this bill</h2></div><div class="item-tools"><button class="soft-button" id="importButton">↥ Import file</button><button class="primary-button small" id="addItemButton">＋ Add item</button><input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden><input id="folderInput" type="file" accept=".xlsx,.xls,.csv" webkitdirectory directory multiple hidden></div></div>
+              <form class="scanner-bar" id="barcodeForm"><label for="barcodeInput">Scan grocery barcode</label><div><input id="barcodeInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Click here, then scan barcode"><button class="primary-button small" type="submit">Add barcode</button><button class="soft-button camera-button" id="cameraButton" type="button">Use camera</button></div><small>Use a USB/Bluetooth scanner or scan a barcode with your device camera.</small><div class="test-barcode-tools"><button class="inline-link" id="testBarcodeButton" type="button">Show test barcode</button><span>Demo product · barcode 123456789012</span></div><div id="testBarcodePanel" class="test-barcode-panel" hidden><svg id="testBarcodeSvg" aria-label="Test barcode 123456789012"></svg><small>Scan this CODE 128 label to test the scanner. It adds a test-only ₹1 item.</small></div><div id="cameraPanel" class="camera-panel" hidden><div id="cameraReader"></div><p id="cameraStatus" role="status" aria-live="polite">Allow camera access when prompted.</p></div></form>
+              <div class="product-search"><label for="productSearch">Find an item by name or barcode</label><input id="productSearch" type="search" role="combobox" aria-autocomplete="list" aria-controls="productSearchResults" aria-expanded="false" placeholder="Search your grocery product library"><div id="productSearchResults" class="product-search-results" role="listbox" hidden></div></div>
+              <div class="import-hint"><span class="hint-icon">↥</span><span><b>Load your grocery master list</b> — MRP is used as the item price. Include barcode and product name; optional columns include Discount %, GST rate, and HSN.</span><button id="folderButton" class="inline-link">Choose folder</button></div>
+              <div class="table-wrap"><table class="items-table"><thead><tr><th class="product-col">ITEM / DESCRIPTION</th><th>HSN/SAC</th><th>QTY</th><th>SR INCL. GST (₹)</th><th>DISC %</th><th>GST</th><th class="amount-head">AMOUNT</th><th></th></tr></thead><tbody id="itemsBody"></tbody></table></div>
+              <div class="table-footer"><span id="itemCountLabel">1 item</span><button class="inline-link" id="addBlankItem">＋ Add grocery line</button></div>
+              <div id="importStatus" class="status-message" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel notes-panel">
+              <div class="panel-heading compact"><div><span class="step-label">04 / NOTES</span><h2>Additional details</h2></div></div>
+              <div class="field-grid two-col"><label>Payment method<select id="paymentMethod"><option>Cash</option><option>UPI</option><option>Card</option><option>Bank transfer</option><option>Credit</option></select></label><label>Notes <span class="optional">OPTIONAL</span><input id="invoiceNotes" type="text" placeholder="Thank you for your business"></label></div>
+            </section>
+          </div>
+
+          <aside class="preview-column">
+            <section class="preview-card">
+              <div class="preview-top"><div><span class="step-label">LIVE PREVIEW</span><h2>57 mm thermal</h2></div><span class="paper-icon">▤</span></div>
+              <div class="receipt-frame"><article class="receipt" id="receiptPreview"></article></div>
+              <div class="preview-foot"><span class="green-dot"></span>Print-ready · 57 mm paper width</div>
+            </section>
+            <section class="totals-card"><div class="totals-title">Invoice summary</div><div class="discount-controls"><label for="discountType">Bill discount</label><select id="discountType"><option value="amount">Amount (₹)</option><option value="percent">Percent (%)</option></select><input id="discountValue" type="number" min="0" step="0.01" value="0" aria-label="Discount amount or percent"></div><div class="summary-line"><span>Subtotal (incl. GST)</span><b id="grossSubtotalValue">₹0.00</b></div><div class="summary-line discount-summary" id="itemDiscountSummaryLine" hidden><span>Product discounts</span><b id="itemDiscountValue">−₹0.00</b></div><div class="summary-line"><span>Taxable value</span><b id="subtotalValue">₹0.00</b></div><div class="summary-line" id="cgstLine"><span>CGST included</span><b id="cgstValue">₹0.00</b></div><div class="summary-line" id="sgstLine"><span>SGST included</span><b id="sgstValue">₹0.00</b></div><div class="summary-line" id="igstLine" hidden><span>IGST included</span><b id="igstValue">₹0.00</b></div><div class="summary-line discount-summary" id="discountSummaryLine" hidden><span>Bill discount</span><b id="discountValueDisplay">−₹0.00</b></div><div class="summary-line grand-total"><span>Total due</span><b id="totalValue">₹0.00</b></div><button class="primary-button save-button" id="savePrintButton">Save bill &amp; print <span>↗</span></button><p class="save-note">SR and item amounts already include GST. GST lines show the included portion.</p></section>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="historyView"><div class="panel list-panel"><div class="panel-heading"><div><span class="step-label">YOUR RECORDS</span><h2>Bill history</h2></div><button class="soft-button" id="historyNewButton">＋ Create bill</button></div><div id="historyList" class="record-list"></div></div></section>
+      <section class="view" id="productsView"><div class="panel list-panel"><div class="panel-heading"><div><span class="step-label">LOCAL CATALOGUE</span><h2>Product library</h2></div><button class="soft-button" id="productImportButton">↥ Import file</button></div><div id="productList" class="product-list"></div><p class="catalogue-note">This catalogue is stored in IndexedDB on this device. You can import Excel or CSV files from the billing screen.</p></div></section>
+      <footer class="main-footer"><span>GSTBill · Simple, local-first billing</span><span>57 mm thermal receipt format</span></footer>
+    </main>
+  </div>
+  <div id="printRoot" aria-hidden="true"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
