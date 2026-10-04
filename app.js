@@ -22,7 +22,6 @@ function openDatabase() {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains('invoices')) database.createObjectStore('invoices', { keyPath: 'id' });
-      if (!database.objectStoreNames.contains('products')) database.createObjectStore('products', { keyPath: 'id', autoIncrement: true });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -45,19 +44,6 @@ function productMatches(existing, product) {
   const sameName = String(existing.name || '').trim().toLowerCase() === String(product.name || '').trim().toLowerCase();
   if (product.barcode) return String(existing.barcode || '').trim() === product.barcode || (!existing.barcode && sameName);
   return !existing.barcode && sameName;
-}
-
-async function migrateLegacyProducts() {
-  const legacyProducts = await getAll('products');
-  for (const legacy of legacyProducts) {
-    if (productCatalog.some((product) => productMatches(product, legacy))) continue;
-    const id = Number(legacy.id);
-    const legacyId = Number.isInteger(id) && id > 0 && !productCatalog.some((product) => product.id === id)
-      ? id
-      : nextProductId;
-    productCatalog.push({ ...legacy, id: legacyId });
-    nextProductId = Math.max(nextProductId, legacyId + 1);
-  }
 }
 
 async function saveProductCatalog() {
@@ -461,9 +447,10 @@ async function importFiles(fileList) {
         imported += 1;
       }
     }
+    await renderProducts();
     await refreshDraftProductPrices(true);
-    setStatus(imported ? `Imported ${imported} product${imported === 1 ? '' : 's'}. In Product library, choose Save JS catalog and select this project's product-data.js to keep them available after reload.${skipped ? ` · skipped ${skipped} blank/unrecognized row${skipped === 1 ? '' : 's'}` : ''}` : 'No products found. Check that the first row has a product/name or description column.', imported === 0);
-    if (imported) showToast(`${imported} products added to library`);
+    setStatus(imported ? `Imported ${imported} product${imported === 1 ? '' : 's'} into this session. Choose Save JS catalog and select product-data.js to keep the changes after reload.${skipped ? ` · skipped ${skipped} blank/unrecognized row${skipped === 1 ? '' : 's'}` : ''}` : 'No products found. Check that the first row has a product/name or description column.', imported === 0);
+    if (imported) showToast(`${imported} products imported — save the JS catalog to keep them`);
   } catch (error) {
     setStatus(error.message || 'Could not read the selected file.', true);
   }
@@ -619,7 +606,7 @@ function attachEvents() {
     const product = (await getProducts()).find((entry) => entry.id === Number(button.dataset.id));
     if (product) { addItem({ ...product, quantity: 1 }); showView('billing'); }
   });
-  $('helpButton').addEventListener('click', () => window.alert('Bills are stored in this browser using IndexedDB. The product catalogue is loaded from product-data.js; after importing products, choose Save JS catalog and select this project file to keep them available after reload. Redeploy to make the products available to everyone. Business details and your current draft are stored in localStorage. Data does not upload to a server. Choose the MASTER UPLOAD folder using “Choose folder”; the browser will ask you to select it.'));
+  $('helpButton').addEventListener('click', () => window.alert('Bills are stored in this browser using IndexedDB. Products are loaded from product-data.js only, not browser storage. After importing products, choose Save JS catalog and select this project file to keep the changes after reload. Redeploy to make updated products available to everyone. Business details and your current draft are stored in localStorage. Data does not upload to a server. Choose the MASTER UPLOAD folder using “Choose folder”; the browser will ask you to select it.'));
 }
 function buildReceipt(bill) {
   const grossSubtotal = bill.grossSubtotal !== undefined ? number(bill.grossSubtotal) : (bill.items || []).reduce((sum, item) => sum + number(item.quantity) * number(item.rate), 0);
@@ -633,10 +620,6 @@ async function init() {
   attachEvents();
   try { db = await openDatabase(); }
   catch { showToast('Browser database unavailable; try a recent browser with storage enabled'); }
-  if (db) {
-    try { await migrateLegacyProducts(); }
-    catch (error) { showToast(`Could not load products saved by the previous version: ${error.message || 'storage unavailable'}`); }
-  }
   profileLoad();
   const hasDraft = draftLoad();
   if (hasDraft) await refreshDraftProductPrices();

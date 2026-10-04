@@ -1,6 +1,6 @@
 # GSTBill
 
-A lightweight GST invoicing app built with HTML, CSS and JavaScript. The product catalogue ships in `product-data.js`, so it is available wherever the app is deployed. Bills are saved in browser-local IndexedDB; your business profile and in-progress draft use localStorage. No account or server database is involved.
+A lightweight GST invoicing app built with HTML, CSS and JavaScript. The product catalogue is loaded exclusively from `product-data.js`. Bills are saved in browser-local IndexedDB; your business profile and in-progress draft use localStorage. No account or server database is involved.
 
 ## Start
 
@@ -10,7 +10,7 @@ Open this folder in VS Code and launch `index.html` with a static web server (fo
 
 1. In the billing screen select **Choose folder** and pick `C:\Users\Admin\Documents\MASTER UPLOAD`, or use **Import file** to select `420.xlsx` (or other Excel/CSV files).
 2. The app reads the first worksheet of Excel files or the CSV header row. It recognizes common product, description, HSN/SAC, quantity, rate/price, and GST-rate column names. Imported rows appear in **Product library**.
-3. In **Product library**, select **Save JS catalog** and choose this project's `product-data.js`, confirming replacement. Reload the app to use the saved catalog, then redeploy it to make the products available to everyone. If your browser doesn't support saving files directly, replace `product-data.js` with the downloaded file manually.
+3. Products always load from `product-data.js`, not browser storage. Imported products are available for the current session; select **Save JS catalog** and choose this project's `product-data.js`, confirming replacement to keep them after reload. Redeploy the file to make updates available to everyone. If your browser doesn't support direct file saving, replace `product-data.js` with the downloaded file manually.
 4. Excel import uses SheetJS from jsDelivr, so the browser needs an internet connection for `.xlsx`/`.xls`. CSV import works without that library. Browsers require a person to select the folder; a web page cannot silently read an absolute path from the computer.
 
 ## Create and print a bill
