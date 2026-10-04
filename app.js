@@ -4,8 +4,11 @@ const PROFILE_KEY = 'gstbill-business-profile';
 const DRAFT_KEY = 'gstbill-current-draft';
 const GST_RATES = [0, 5, 12, 18, 28];
 const TEST_BARCODE = '123456789012';
+const productCatalog = (Array.isArray(window.GSTBILL_PRODUCTS) ? window.GSTBILL_PRODUCTS : [])
+  .map((product, index) => ({ ...product, id: Number(product.id) || index + 1 }));
 let db;
 let items = [];
+let nextProductId = productCatalog.reduce((highest, product) => Math.max(highest, Number(product.id) || 0), 0) + 1;
 let toastTimer;
 let cameraScanner;
 let lastCameraCode = '';
@@ -36,7 +39,39 @@ function storeRequest(storeName, mode, action) {
 }
 const getAll = (name) => storeRequest(name, 'readonly', (store) => store.getAll());
 const put = (name, value) => storeRequest(name, 'readwrite', (store) => store.put(value));
-const add = (name, value) => storeRequest(name, 'readwrite', (store) => store.add(value));
+const getProducts = () => Promise.resolve(productCatalog);
+
+function productMatches(existing, product) {
+  const sameName = String(existing.name || '').trim().toLowerCase() === String(product.name || '').trim().toLowerCase();
+  if (product.barcode) return String(existing.barcode || '').trim() === product.barcode || (!existing.barcode && sameName);
+  return !existing.barcode && sameName;
+}
+
+async function migrateLegacyProducts() {
+  const legacyProducts = await getAll('products');
+  for (const legacy of legacyProducts) {
+    if (productCatalog.some((product) => productMatches(product, legacy))) continue;
+    const id = Number(legacy.id);
+    const legacyId = Number.isInteger(id) && id > 0 && !productCatalog.some((product) => product.id === id)
+      ? id
+      : nextProductId;
+    productCatalog.push({ ...legacy, id: legacyId });
+    nextProductId = Math.max(nextProductId, legacyId + 1);
+  }
+}
+
+function downloadProductCatalog() {
+  const source = `window.GSTBILL_PRODUCTS = ${JSON.stringify(productCatalog, null, 2)};\n`;
+  const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'product-data.js';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast('Downloaded product-data.js — replace the project file and redeploy');
+}
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -209,7 +244,7 @@ async function renderHistory() {
   $('historyList').innerHTML = invoices.length ? invoices.map((invoice) => `<div class="record-row"><div><b>${escapeHtml(invoice.number)}</b><small>${escapeHtml(invoice.customerName || 'Cash customer')} · ${escapeHtml(formatDate(invoice.invoiceDate))}</small></div><span>${escapeHtml(invoice.paymentMethod || '')}</span><span class="record-amount">${money(invoice.total)}</span><div class="row-actions"><button data-action="print" data-id="${escapeHtml(invoice.id)}">Print</button><button data-action="load" data-id="${escapeHtml(invoice.id)}">Open</button><button data-action="delete" data-id="${escapeHtml(invoice.id)}" aria-label="Delete bill">×</button></div></div>`).join('') : '<div class="empty-state"><b>No saved bills yet</b>Your invoices will appear here after you save one.</div>';
 }
 async function renderProducts() {
-  const products = (await getAll('products')).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const products = (await getProducts()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   $('productList').innerHTML = products.length ? products.map((product) => `<div class="product-row"><div><b>${escapeHtml(product.name)}</b><small>${escapeHtml(product.barcode ? `Barcode ${product.barcode}` : product.hsn || 'No barcode')}${number(product.discountPercent) ? ` · ${number(product.discountPercent)}% product discount` : ''}</small></div><span>GST ${number(product.gstRate)}%</span><span class="record-amount">${money(product.rate)}</span><div class="row-actions"><button data-action="use" data-id="${product.id}">Add to bill</button></div></div>`).join('') : '<div class="empty-state"><b>Your product library is empty</b>Upload your grocery master list with barcode, product name and price columns.</div>';
 }
 function normalizeHeader(header) {
@@ -251,7 +286,7 @@ async function renderProductSearch(query) {
     $('productSearch').setAttribute('aria-expanded', 'false');
     return;
   }
-  const products = await getAll('products');
+  const products = await getProducts();
   const matches = products.filter((product) => [product.name, product.barcode, product.hsn]
     .some((value) => String(value || '').toLowerCase().includes(search)))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
@@ -261,7 +296,7 @@ async function renderProductSearch(query) {
   $('productSearch').setAttribute('aria-expanded', 'true');
 }
 async function selectSearchProduct(id) {
-  const products = await getAll('products');
+  const products = await getProducts();
   const product = products.find((entry) => String(entry.id) === String(id));
   if (!product) return;
   addItem({ ...product, quantity: 1 });
@@ -280,7 +315,7 @@ async function scanBarcode(value) {
   const barcode = String(value || '').trim();
   if (!barcode) return;
   $('barcodeInput').value = '';
-  const products = await getAll('products');
+  const products = await getProducts();
   const product = products.find((entry) => String(entry.barcode || '').trim() === barcode)
     || (barcode === TEST_BARCODE ? { name: 'Test grocery item', barcode: TEST_BARCODE, hsn: '', rate: 1, gstRate: 0 } : null);
   if (!product) {
@@ -386,35 +421,29 @@ async function importFiles(fileList) {
   let imported = 0, skipped = 0;
   setStatus(`Reading ${files.length} file${files.length === 1 ? '' : 's'}…`);
   try {
-    const catalog = await getAll('products');
+    const catalog = productCatalog;
     for (const file of files) {
       const rows = await fileToRows(file);
       for (const row of rows) {
         const product = mapProduct(row);
         if (!product) { skipped += 1; continue; }
-        const existingMatches = catalog.filter((entry) => {
-          const sameName = String(entry.name || '').trim().toLowerCase() === product.name.toLowerCase();
-          if (product.barcode) return String(entry.barcode || '').trim() === product.barcode || (!entry.barcode && sameName);
-          return !entry.barcode && sameName;
-        });
+        const existingMatches = catalog.filter((entry) => productMatches(entry, product));
         const existing = existingMatches[0];
         const importedProduct = { ...existing, ...product, sourceFile: file.name, importedAt: new Date().toISOString() };
         if (existing) {
-          await put('products', importedProduct);
           Object.assign(existing, importedProduct);
           for (const duplicate of existingMatches.slice(1)) {
-            await storeRequest('products', 'readwrite', (store) => store.delete(duplicate.id));
             catalog.splice(catalog.indexOf(duplicate), 1);
           }
         } else {
-          importedProduct.id = await add('products', importedProduct);
+          importedProduct.id = nextProductId++;
           catalog.push(importedProduct);
         }
         imported += 1;
       }
     }
     await refreshDraftProductPrices(true);
-    setStatus(imported ? `Imported ${imported} product${imported === 1 ? '' : 's'} into your local library${skipped ? ` · skipped ${skipped} blank/unrecognized row${skipped === 1 ? '' : 's'}` : ''}.` : 'No products found. Check that the first row has a product/name or description column.', imported === 0);
+    setStatus(imported ? `Imported ${imported} product${imported === 1 ? '' : 's'}. Download product-data.js from Product library, replace the project file, and redeploy to keep them available.${skipped ? ` · skipped ${skipped} blank/unrecognized row${skipped === 1 ? '' : 's'}` : ''}` : 'No products found. Check that the first row has a product/name or description column.', imported === 0);
     if (imported) showToast(`${imported} products added to library`);
   } catch (error) {
     setStatus(error.message || 'Could not read the selected file.', true);
@@ -423,7 +452,7 @@ async function importFiles(fileList) {
   $('folderInput').value = '';
 }
 async function refreshDraftProductPrices(forceCatalogPrice = false) {
-  const products = await getAll('products');
+  const products = await getProducts();
   let changed = false;
   items.forEach((item) => {
     const itemName = String(item.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -494,6 +523,7 @@ function attachEvents() {
   $('savePrintButton').addEventListener('click', saveAndPrint);
   $('importButton').addEventListener('click', () => $('fileInput').click());
   $('productImportButton').addEventListener('click', () => $('fileInput').click());
+  $('productExportButton').addEventListener('click', downloadProductCatalog);
   $('folderButton').addEventListener('click', () => $('folderInput').click());
   $('fileInput').addEventListener('change', (event) => importFiles(event.target.files));
   $('folderInput').addEventListener('change', (event) => importFiles(event.target.files));
@@ -567,10 +597,10 @@ function attachEvents() {
   $('productList').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-action="use"]');
     if (!button) return;
-    const product = (await getAll('products')).find((entry) => entry.id === Number(button.dataset.id));
+    const product = (await getProducts()).find((entry) => entry.id === Number(button.dataset.id));
     if (product) { addItem({ ...product, quantity: 1 }); showView('billing'); }
   });
-  $('helpButton').addEventListener('click', () => window.alert('Bills and products are stored in this browser using IndexedDB. Business details and your current draft are stored in localStorage. Data does not upload to a server. Choose the MASTER UPLOAD folder using “Choose folder”; the browser will ask you to select it.'));
+  $('helpButton').addEventListener('click', () => window.alert('Bills are stored in this browser using IndexedDB. The product catalogue is loaded from product-data.js; after importing products, download the updated file, replace it in the project, and redeploy so the products are available to everyone. Business details and your current draft are stored in localStorage. Data does not upload to a server. Choose the MASTER UPLOAD folder using “Choose folder”; the browser will ask you to select it.'));
 }
 function buildReceipt(bill) {
   const grossSubtotal = bill.grossSubtotal !== undefined ? number(bill.grossSubtotal) : (bill.items || []).reduce((sum, item) => sum + number(item.quantity) * number(item.rate), 0);
@@ -584,6 +614,10 @@ async function init() {
   attachEvents();
   try { db = await openDatabase(); }
   catch { showToast('Browser database unavailable; try a recent browser with storage enabled'); }
+  if (db) {
+    try { await migrateLegacyProducts(); }
+    catch (error) { showToast(`Could not load products saved by the previous version: ${error.message || 'storage unavailable'}`); }
+  }
   profileLoad();
   const hasDraft = draftLoad();
   if (hasDraft) await refreshDraftProductPrices();

@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
+  <script src="product-data.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -90,7 +91,7 @@
       </section>
 
       <section class="view" id="historyView"><div class="panel list-panel"><div class="panel-heading"><div><span class="step-label">YOUR RECORDS</span><h2>Bill history</h2></div><button class="soft-button" id="historyNewButton">＋ Create bill</button></div><div id="historyList" class="record-list"></div></div></section>
-      <section class="view" id="productsView"><div class="panel list-panel"><div class="panel-heading"><div><span class="step-label">LOCAL CATALOGUE</span><h2>Product library</h2></div><button class="soft-button" id="productImportButton">↥ Import file</button></div><div id="productList" class="product-list"></div><p class="catalogue-note">This catalogue is stored in IndexedDB on this device. You can import Excel or CSV files from the billing screen.</p></div></section>
+      <section class="view" id="productsView"><div class="panel list-panel"><div class="panel-heading"><div><span class="step-label">JAVASCRIPT CATALOGUE</span><h2>Product library</h2></div><div class="item-tools"><button class="soft-button" id="productImportButton">↥ Import file</button><button class="soft-button" id="productExportButton">↓ Download JS catalog</button></div></div><div id="productList" class="product-list"></div><p class="catalogue-note">After importing, download product-data.js, replace this project file, and redeploy to make the catalogue available to everyone. Until then, imported products stay available in this open tab.</p></div></section>
       <footer class="main-footer"><span>GSTBill · Simple, local-first billing</span><span>57 mm thermal receipt format</span></footer>
     </main>
   </div>

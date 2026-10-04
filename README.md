@@ -1,6 +1,6 @@
 # GSTBill
 
-A lightweight GST invoicing app built with HTML, CSS and JavaScript. Bills and imported products are saved in a browser-local IndexedDB database; your business profile and in-progress draft use localStorage. No account or server database is involved, and data stays in the current browser profile.
+A lightweight GST invoicing app built with HTML, CSS and JavaScript. The product catalogue ships in `product-data.js`, so it is available wherever the app is deployed. Bills are saved in browser-local IndexedDB; your business profile and in-progress draft use localStorage. No account or server database is involved.
 
 ## Start
 
@@ -10,7 +10,8 @@ Open this folder in VS Code and launch `index.html` with a static web server (fo
 
 1. In the billing screen select **Choose folder** and pick `C:\Users\Admin\Documents\MASTER UPLOAD`, or use **Import file** to select `420.xlsx` (or other Excel/CSV files).
 2. The app reads the first worksheet of Excel files or the CSV header row. It recognizes common product, description, HSN/SAC, quantity, rate/price, and GST-rate column names. Imported rows appear in **Product library**.
-3. Excel import uses SheetJS from jsDelivr, so the browser needs an internet connection for `.xlsx`/`.xls`. CSV import works without that library. Browsers require a person to select the folder; a web page cannot silently read an absolute path from the computer.
+3. In **Product library**, select **Download JS catalog**. Replace the project's `product-data.js` with the downloaded file and redeploy the app. The browser cannot write into the project's source files automatically, so products are portable to other devices only after this step.
+4. Excel import uses SheetJS from jsDelivr, so the browser needs an internet connection for `.xlsx`/`.xls`. CSV import works without that library. Browsers require a person to select the folder; a web page cannot silently read an absolute path from the computer.
 
 ## Create and print a bill
 

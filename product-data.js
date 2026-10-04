@@ -1,0 +1,1 @@
+window.GSTBILL_PRODUCTS = [];
