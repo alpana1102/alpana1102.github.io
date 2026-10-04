@@ -60,8 +60,27 @@ async function migrateLegacyProducts() {
   }
 }
 
-function downloadProductCatalog() {
+async function saveProductCatalog() {
   const source = `window.GSTBILL_PRODUCTS = ${JSON.stringify(productCatalog, null, 2)};\n`;
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'product-data.js',
+        types: [{ description: 'JavaScript file', accept: { 'text/javascript': ['.js'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(source);
+      await writable.close();
+      showToast('Saved product-data.js — reload the app to use the saved catalog');
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        const message = `Could not save product-data.js: ${error.message || 'file access was denied'}`;
+        setStatus(message, true);
+        showToast(message);
+      }
+    }
+    return;
+  }
   const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
@@ -443,7 +462,7 @@ async function importFiles(fileList) {
       }
     }
     await refreshDraftProductPrices(true);
-    setStatus(imported ? `Imported ${imported} product${imported === 1 ? '' : 's'}. Download product-data.js from Product library, replace the project file, and redeploy to keep them available.${skipped ? ` · skipped ${skipped} blank/unrecognized row${skipped === 1 ? '' : 's'}` : ''}` : 'No products found. Check that the first row has a product/name or description column.', imported === 0);
+    setStatus(imported ? `Imported ${imported} product${imported === 1 ? '' : 's'}. In Product library, choose Save JS catalog and select this project's product-data.js to keep them available after reload.${skipped ? ` · skipped ${skipped} blank/unrecognized row${skipped === 1 ? '' : 's'}` : ''}` : 'No products found. Check that the first row has a product/name or description column.', imported === 0);
     if (imported) showToast(`${imported} products added to library`);
   } catch (error) {
     setStatus(error.message || 'Could not read the selected file.', true);
@@ -523,7 +542,7 @@ function attachEvents() {
   $('savePrintButton').addEventListener('click', saveAndPrint);
   $('importButton').addEventListener('click', () => $('fileInput').click());
   $('productImportButton').addEventListener('click', () => $('fileInput').click());
-  $('productExportButton').addEventListener('click', downloadProductCatalog);
+  $('productExportButton').addEventListener('click', saveProductCatalog);
   $('folderButton').addEventListener('click', () => $('folderInput').click());
   $('fileInput').addEventListener('change', (event) => importFiles(event.target.files));
   $('folderInput').addEventListener('change', (event) => importFiles(event.target.files));
@@ -600,7 +619,7 @@ function attachEvents() {
     const product = (await getProducts()).find((entry) => entry.id === Number(button.dataset.id));
     if (product) { addItem({ ...product, quantity: 1 }); showView('billing'); }
   });
-  $('helpButton').addEventListener('click', () => window.alert('Bills are stored in this browser using IndexedDB. The product catalogue is loaded from product-data.js; after importing products, download the updated file, replace it in the project, and redeploy so the products are available to everyone. Business details and your current draft are stored in localStorage. Data does not upload to a server. Choose the MASTER UPLOAD folder using “Choose folder”; the browser will ask you to select it.'));
+  $('helpButton').addEventListener('click', () => window.alert('Bills are stored in this browser using IndexedDB. The product catalogue is loaded from product-data.js; after importing products, choose Save JS catalog and select this project file to keep them available after reload. Redeploy to make the products available to everyone. Business details and your current draft are stored in localStorage. Data does not upload to a server. Choose the MASTER UPLOAD folder using “Choose folder”; the browser will ask you to select it.'));
 }
 function buildReceipt(bill) {
   const grossSubtotal = bill.grossSubtotal !== undefined ? number(bill.grossSubtotal) : (bill.items || []).reduce((sum, item) => sum + number(item.quantity) * number(item.rate), 0);
